@@ -1,5 +1,6 @@
 import pymysql
 import os
+import datetime
 
 class Database:
     def __init__(self, host='localhost', user='root', password='123456', db='infant_health'):
@@ -78,22 +79,38 @@ class Database:
                 can_eat_independently TINYINT,
                 family_dietary_restrictions TEXT,
                 city VARCHAR(100),
+                record_date DATE NOT NULL, -- 记录日期，用于区分不同时期的档案
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             ''')
             
+            # 创建索引，提高查询速度
+            try:
+                self.cursor.execute('CREATE INDEX idx_infant_profile_name ON infant_profile (name)')
+            except Exception:
+                pass
+            try:
+                self.cursor.execute('CREATE INDEX idx_infant_profile_record_date ON infant_profile (record_date)')
+            except Exception:
+                pass
+            
             # 创建对话上下文消息表
             self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS chat_context (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                infant_id INT NOT NULL,
+                infant_name VARCHAR(50) NOT NULL,
                 role VARCHAR(20) NOT NULL,
                 content TEXT NOT NULL,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (infant_id) REFERENCES infant_profile (id) ON DELETE CASCADE
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             ''')
+            
+            # 创建索引，提高查询速度
+            try:
+                self.cursor.execute('CREATE INDEX idx_chat_context_infant_name ON chat_context (infant_name)')
+            except Exception:
+                pass
             
             # 创建索引，提高查询速度
             # 使用更兼容的方式创建索引
@@ -133,14 +150,17 @@ class Database:
     
     # 婴幼儿档案相关方法
     def add_infant(self, data):
+        # 如果没有提供record_date，使用当前日期
+        record_date = data.get('record_date', datetime.datetime.now().strftime('%Y-%m-%d'))
+        
         query = '''
         INSERT INTO infant_profile (
             name, gender, birth_date, is_preterm, gestational_age, 
             weight, height, head_circumference, feeding_type, daily_milk, 
             辅食_start_age, allergies, health_conditions, supplements, 
             food_texture, disliked_foods, can_eat_independently, 
-            family_dietary_restrictions, city
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            family_dietary_restrictions, city, record_date
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         '''
         self.cursor.execute(query, (
             data['name'], data['gender'], data['birth_date'], data['is_preterm'], 
@@ -149,7 +169,7 @@ class Database:
             data['辅食_start_age'], data['allergies'], data['health_conditions'], 
             data['supplements'], data['food_texture'], data['disliked_foods'], 
             data['can_eat_independently'], data['family_dietary_restrictions'], 
-            data['city']
+            data['city'], record_date
         ))
         self.conn.commit()
         return self.cursor.lastrowid
@@ -158,8 +178,38 @@ class Database:
         self.cursor.execute('SELECT * FROM infant_profile WHERE id = %s', (infant_id,))
         return self.cursor.fetchone()
     
+    def get_latest_infant(self, name):
+        """
+        获取指定婴幼儿的最新档案
+        :param name: 婴幼儿姓名
+        :return: 最新档案信息
+        """
+        self.cursor.execute('''
+        SELECT * FROM infant_profile 
+        WHERE name = %s 
+        ORDER BY record_date DESC 
+        LIMIT 1
+        ''', (name,))
+        return self.cursor.fetchone()
+    
     def get_all_infants(self):
-        self.cursor.execute('SELECT id, name, gender, birth_date FROM infant_profile ORDER BY created_at DESC')
+        '''
+        获取所有唯一的婴幼儿姓名
+        '''
+        self.cursor.execute('SELECT DISTINCT name FROM infant_profile ORDER BY name')
+        return self.cursor.fetchall()
+    
+    def get_infant_history(self, name):
+        """
+        获取指定婴幼儿的历史档案
+        :param name: 婴幼儿姓名
+        :return: 历史档案列表
+        """
+        self.cursor.execute('''
+        SELECT * FROM infant_profile 
+        WHERE name = %s 
+        ORDER BY record_date DESC
+        ''', (name,))
         return self.cursor.fetchall()
     
     def update_infant(self, infant_id, data):
@@ -193,51 +243,51 @@ class Database:
         return self.cursor.rowcount > 0
     
     # 对话上下文相关方法
-    def add_chat_message(self, infant_id, role, content):
+    def add_chat_message(self, infant_name, role, content):
         # 检查当前对话消息数量
-        self.cursor.execute('SELECT COUNT(*) FROM chat_context WHERE infant_id = %s', (infant_id,))
+        self.cursor.execute('SELECT COUNT(*) FROM chat_context WHERE infant_name = %s', (infant_name,))
         count = self.cursor.fetchone()['COUNT(*)']
         
         # 如果超过20条，删除最早的消息
         if count >= 20:
             self.cursor.execute('''
             DELETE FROM chat_context 
-            WHERE infant_id = %s AND id IN (
+            WHERE infant_name = %s AND id IN (
                 SELECT id FROM chat_context 
-                WHERE infant_id = %s 
+                WHERE infant_name = %s 
                 ORDER BY timestamp ASC 
                 LIMIT %s
             )
-            ''', (infant_id, infant_id, count - 19))
+            ''', (infant_name, infant_name, count - 19))
         
         # 添加新消息
         self.cursor.execute('''
-        INSERT INTO chat_context (infant_id, role, content) 
+        INSERT INTO chat_context (infant_name, role, content) 
         VALUES (%s, %s, %s)
-        ''', (infant_id, role, content))
+        ''', (infant_name, role, content))
         self.conn.commit()
         return self.cursor.lastrowid
     
-    def get_chat_history(self, infant_id, limit=20):
+    def get_chat_history(self, infant_name, limit=20):
         self.cursor.execute('''
         SELECT role, content, timestamp 
         FROM chat_context 
-        WHERE infant_id = %s 
+        WHERE infant_name = %s 
         ORDER BY timestamp ASC 
         LIMIT %s
-        ''', (infant_id, limit))
+        ''', (infant_name, limit))
         return self.cursor.fetchall()
     
-    def get_chat_time_range(self, infant_id):
+    def get_chat_time_range(self, infant_name):
         self.cursor.execute('''
         SELECT MIN(timestamp) as min_time, MAX(timestamp) as max_time 
         FROM chat_context 
-        WHERE infant_id = %s
-        ''', (infant_id,))
+        WHERE infant_name = %s
+        ''', (infant_name,))
         result = self.cursor.fetchone()
         return (result['min_time'], result['max_time']) if result else (None, None)
     
-    def clear_chat_history(self, infant_id):
-        self.cursor.execute('DELETE FROM chat_context WHERE infant_id = %s', (infant_id,))
+    def clear_chat_history(self, infant_name):
+        self.cursor.execute('DELETE FROM chat_context WHERE infant_name = %s', (infant_name,))
         self.conn.commit()
         return self.cursor.rowcount > 0
