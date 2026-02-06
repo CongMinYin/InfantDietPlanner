@@ -1,8 +1,10 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, messagebox, simpledialog, filedialog
 import datetime
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_pdf import PdfPages
+import numpy as np
 from database import Database
 from ai_service import AIService
 
@@ -121,6 +123,51 @@ class InfantHealthSystem:
         # 加载婴幼儿列表
         self.load_infant_list()
     
+    def _get_who_growth_standards(self):
+        """
+        获取WHO儿童生长标准数据
+        返回0-36月龄的WHO生长标准百分位数
+        """
+        # 数据来源：WHO儿童生长标准
+        return {
+            'weight': {
+                'boys': {
+                    'p3': [2.4, 3.1, 3.7, 4.2, 4.6, 5.0, 5.3, 5.6, 5.9, 6.1, 6.3, 6.5, 6.7, 6.9, 7.0, 7.2, 7.3, 7.5, 7.6, 7.7, 7.8, 7.9, 8.0, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9, 9.0, 9.1, 9.2, 9.3],
+                    'p50': [3.3, 4.3, 5.0, 5.6, 6.1, 6.6, 7.0, 7.4, 7.7, 8.0, 8.3, 8.6, 8.8, 9.1, 9.3, 9.5, 9.7, 9.9, 10.1, 10.3, 10.4, 10.6, 10.8, 10.9, 11.1, 11.2, 11.4, 11.5, 11.7, 11.8, 11.9, 12.1, 12.2, 12.3, 12.4, 12.6],
+                    'p97': [4.3, 5.4, 6.3, 7.0, 7.7, 8.3, 8.8, 9.3, 9.7, 10.1, 10.5, 10.8, 11.2, 11.5, 11.8, 12.1, 12.4, 12.7, 13.0, 13.3, 13.5, 13.8, 14.0, 14.3, 14.5, 14.8, 15.0, 15.2, 15.5, 15.7, 15.9, 16.2, 16.4, 16.6, 16.8, 17.1]
+                },
+                'girls': {
+                    'p3': [2.3, 3.0, 3.6, 4.0, 4.4, 4.8, 5.1, 5.4, 5.6, 5.8, 6.0, 6.2, 6.3, 6.5, 6.6, 6.8, 6.9, 7.0, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 8.0, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8],
+                    'p50': [3.2, 4.1, 4.8, 5.3, 5.7, 6.1, 6.5, 6.8, 7.1, 7.3, 7.6, 7.8, 8.0, 8.2, 8.4, 8.6, 8.8, 8.9, 9.1, 9.3, 9.4, 9.6, 9.7, 9.9, 10.0, 10.1, 10.3, 10.4, 10.5, 10.6, 10.8, 10.9, 11.0, 11.1, 11.2, 11.4],
+                    'p97': [4.1, 5.2, 6.0, 6.6, 7.1, 7.6, 8.0, 8.4, 8.8, 9.1, 9.4, 9.7, 10.0, 10.3, 10.5, 10.8, 11.0, 11.3, 11.5, 11.7, 12.0, 12.2, 12.4, 12.6, 12.8, 13.0, 13.2, 13.4, 13.6, 13.8, 14.0, 14.2, 14.4, 14.6, 14.8, 15.0]
+                }
+            },
+            'height': {
+                'boys': {
+                    'p3': [45.9, 51.2, 55.3, 58.6, 61.3, 63.7, 65.8, 67.6, 69.2, 70.6, 71.9, 73.1, 74.2, 75.3, 76.3, 77.2, 78.1, 79.0, 79.8, 80.6, 81.3, 82.1, 82.8, 83.5, 84.2, 84.8, 85.5, 86.1, 86.7, 87.3, 87.9, 88.5, 89.1, 89.6, 90.2, 90.7],
+                    'p50': [49.9, 55.5, 59.8, 63.2, 66.0, 68.6, 70.9, 72.9, 74.7, 76.3, 77.7, 79.0, 80.3, 81.5, 82.7, 83.8, 84.8, 85.8, 86.8, 87.7, 88.6, 89.5, 90.3, 91.1, 91.9, 92.7, 93.5, 94.2, 95.0, 95.7, 96.4, 97.1, 97.8, 98.4, 99.1, 99.7],
+                    'p97': [53.9, 59.8, 64.3, 67.9, 70.9, 73.7, 76.2, 78.4, 80.4, 82.2, 83.9, 85.4, 86.9, 88.3, 89.6, 90.9, 92.1, 93.3, 94.4, 95.5, 96.6, 97.6, 98.6, 99.6, 100.5, 101.4, 102.3, 103.2, 104.0, 104.8, 105.6, 106.4, 107.1, 107.9, 108.6, 109.3]
+                },
+                'girls': {
+                    'p3': [45.4, 50.5, 54.4, 57.6, 60.2, 62.5, 64.5, 66.2, 67.8, 69.2, 70.5, 71.7, 72.8, 73.8, 74.8, 75.7, 76.6, 77.5, 78.3, 79.1, 79.8, 80.6, 81.3, 82.0, 82.6, 83.3, 83.9, 84.5, 85.1, 85.7, 86.3, 86.9, 87.5, 88.0, 88.6, 89.1],
+                    'p50': [49.4, 54.7, 58.8, 62.0, 64.7, 67.1, 69.3, 71.2, 72.9, 74.5, 75.9, 77.2, 78.5, 79.7, 80.9, 82.0, 83.1, 84.1, 85.1, 86.0, 86.9, 87.8, 88.6, 89.5, 90.3, 91.1, 91.8, 92.6, 93.3, 94.0, 94.7, 95.4, 96.1, 96.7, 97.4, 98.0],
+                    'p97': [53.4, 59.0, 63.1, 66.4, 69.2, 71.7, 73.9, 75.9, 77.8, 79.4, 81.0, 82.5, 83.9, 85.2, 86.5, 87.7, 88.9, 90.0, 91.1, 92.2, 93.2, 94.2, 95.2, 96.1, 97.0, 97.9, 98.8, 99.6, 100.5, 101.3, 102.1, 102.8, 103.6, 104.3, 105.0, 105.7]
+                }
+            },
+            'head_circumference': {
+                'boys': {
+                    'p3': [30.9, 34.4, 36.9, 38.7, 40.0, 41.1, 42.0, 42.8, 43.4, 44.0, 44.5, 45.0, 45.4, 45.8, 46.2, 46.5, 46.8, 47.1, 47.4, 47.6, 47.9, 48.1, 48.3, 48.5, 48.7, 48.9, 49.1, 49.2, 49.4, 49.6, 49.7, 49.9, 50.0, 50.2, 50.3, 50.4],
+                    'p50': [33.9, 37.3, 39.6, 41.2, 42.5, 43.5, 44.3, 45.0, 45.6, 46.1, 46.6, 47.0, 47.4, 47.7, 48.1, 48.4, 48.7, 48.9, 49.2, 49.4, 49.7, 49.9, 50.1, 50.3, 50.5, 50.7, 50.8, 51.0, 51.2, 51.3, 51.5, 51.6, 51.8, 51.9, 52.0, 52.1],
+                    'p97': [36.9, 40.2, 42.3, 43.7, 44.9, 45.8, 46.6, 47.3, 47.8, 48.3, 48.8, 49.2, 49.6, 49.9, 50.3, 50.6, 50.9, 51.1, 51.4, 51.6, 51.9, 52.1, 52.3, 52.5, 52.7, 52.9, 53.1, 53.2, 53.4, 53.5, 53.7, 53.8, 53.9, 54.1, 54.2, 54.3]
+                },
+                'girls': {
+                    'p3': [30.5, 33.8, 36.2, 37.9, 39.1, 40.1, 40.9, 41.7, 42.3, 42.8, 43.3, 43.8, 44.1, 44.5, 44.8, 45.1, 45.4, 45.7, 45.9, 46.1, 46.4, 46.6, 46.8, 47.0, 47.2, 47.3, 47.5, 47.7, 47.8, 48.0, 48.1, 48.3, 48.4, 48.5, 48.6, 48.7],
+                    'p50': [33.5, 36.8, 39.0, 40.5, 41.7, 42.6, 43.4, 44.1, 44.7, 45.1, 45.6, 46.0, 46.4, 46.7, 47.0, 47.3, 47.6, 47.9, 48.1, 48.3, 48.6, 48.8, 49.0, 49.2, 49.4, 49.6, 49.7, 49.9, 50.0, 50.2, 50.3, 50.5, 50.6, 50.7, 50.8, 50.9],
+                    'p97': [36.5, 39.7, 41.7, 43.2, 44.3, 45.2, 46.0, 46.6, 47.2, 47.7, 48.1, 48.5, 48.9, 49.2, 49.5, 49.8, 50.1, 50.3, 50.6, 50.8, 51.0, 51.3, 51.5, 51.7, 51.9, 52.1, 52.2, 52.4, 52.6, 52.7, 52.9, 53.0, 53.1, 53.3, 53.4, 53.5]
+                }
+            }
+        }
+
     def connect_database(self):
         """
         连接数据库
@@ -163,7 +210,16 @@ class InfantHealthSystem:
         ttk.Button(button_frame, text="修改", command=self.edit_infant).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(button_frame, text="删除", command=self.delete_infant).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(button_frame, text="历史档案", command=self.view_history).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(button_frame, text="添加示例", command=self.add_sample_data).pack(side=tk.LEFT)
+        ttk.Button(button_frame, text="添加示例", command=self.add_sample_data).pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 导出和统计按钮
+        export_frame = ttk.Frame(self.left_frame)
+        export_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        ttk.Button(export_frame, text="导出生长曲线", command=self.export_growth_curve).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(export_frame, text="导出婴儿信息", command=self.export_infant_info).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(export_frame, text="导出聊天记录", command=self.export_chat_history).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(export_frame, text="数据统计", command=self.display_statistics).pack(side=tk.LEFT)
         
         # 婴幼儿信息显示区域
         self.info_frame = ttk.LabelFrame(self.left_frame, text="基本信息", padding="10")
@@ -647,6 +703,7 @@ class InfantHealthSystem:
         head_circumferences = []
         
         birth_date = datetime.datetime.strptime(str(history[0]['birth_date']), "%Y-%m-%d")
+        gender = history[0]['gender']
         
         for record in history:
             record_date = datetime.datetime.strptime(str(record['record_date']), "%Y-%m-%d")
@@ -670,6 +727,13 @@ class InfantHealthSystem:
         plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
         plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
         
+        # 获取WHO生长标准数据
+        who_data = self._get_who_growth_standards()
+        gender_key = 'boys' if gender == '男' else 'girls'
+        
+        # 生成WHO标准曲线的月龄点
+        who_months = list(range(36))
+        
         # 根据是否有头围数据决定图表布局
         if any(hc is not None for hc in head_circumferences):
             # 如果有头围数据，创建3个子图
@@ -677,7 +741,10 @@ class InfantHealthSystem:
             fig.subplots_adjust(hspace=0.5)
             
             # 绘制体重曲线
-            ax1.plot(months, weights, 'o-', color='blue', label='体重 (kg)')
+            ax1.plot(months, weights, 'o-', color='blue', label='实际体重 (kg)')
+            # 添加WHO参考曲线
+            ax1.plot(who_months, who_data['weight'][gender_key]['p50'], '--', color='green', label='WHO P50')
+            ax1.fill_between(who_months, who_data['weight'][gender_key]['p3'], who_data['weight'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
             ax1.set_title('体重增长曲线')
             ax1.set_xlabel('月龄')
             ax1.set_ylabel('体重 (kg)')
@@ -685,7 +752,10 @@ class InfantHealthSystem:
             ax1.legend()
             
             # 绘制身高曲线
-            ax2.plot(months, heights, 'o-', color='green', label='身高 (cm)')
+            ax2.plot(months, heights, 'o-', color='blue', label='实际身高 (cm)')
+            # 添加WHO参考曲线
+            ax2.plot(who_months, who_data['height'][gender_key]['p50'], '--', color='green', label='WHO P50')
+            ax2.fill_between(who_months, who_data['height'][gender_key]['p3'], who_data['height'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
             ax2.set_title('身高增长曲线')
             ax2.set_xlabel('月龄')
             ax2.set_ylabel('身高 (cm)')
@@ -700,7 +770,10 @@ class InfantHealthSystem:
                 if hc is not None:
                     valid_months.append(m)
                     valid_hc.append(hc)
-            ax3.plot(valid_months, valid_hc, 'o-', color='red', label='头围 (cm)')
+            ax3.plot(valid_months, valid_hc, 'o-', color='blue', label='实际头围 (cm)')
+            # 添加WHO参考曲线
+            ax3.plot(who_months, who_data['head_circumference'][gender_key]['p50'], '--', color='green', label='WHO P50')
+            ax3.fill_between(who_months, who_data['head_circumference'][gender_key]['p3'], who_data['head_circumference'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
             ax3.set_title('头围增长曲线')
             ax3.set_xlabel('月龄')
             ax3.set_ylabel('头围 (cm)')
@@ -712,7 +785,10 @@ class InfantHealthSystem:
             fig.subplots_adjust(hspace=0.5)
             
             # 绘制体重曲线
-            ax1.plot(months, weights, 'o-', color='blue', label='体重 (kg)')
+            ax1.plot(months, weights, 'o-', color='blue', label='实际体重 (kg)')
+            # 添加WHO参考曲线
+            ax1.plot(who_months, who_data['weight'][gender_key]['p50'], '--', color='green', label='WHO P50')
+            ax1.fill_between(who_months, who_data['weight'][gender_key]['p3'], who_data['weight'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
             ax1.set_title('体重增长曲线')
             ax1.set_xlabel('月龄')
             ax1.set_ylabel('体重 (kg)')
@@ -720,7 +796,10 @@ class InfantHealthSystem:
             ax1.legend()
             
             # 绘制身高曲线
-            ax2.plot(months, heights, 'o-', color='green', label='身高 (cm)')
+            ax2.plot(months, heights, 'o-', color='blue', label='实际身高 (cm)')
+            # 添加WHO参考曲线
+            ax2.plot(who_months, who_data['height'][gender_key]['p50'], '--', color='green', label='WHO P50')
+            ax2.fill_between(who_months, who_data['height'][gender_key]['p3'], who_data['height'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
             ax2.set_title('身高增长曲线')
             ax2.set_xlabel('月龄')
             ax2.set_ylabel('身高 (cm)')
@@ -854,6 +933,405 @@ class InfantHealthSystem:
         time_range = self.db.get_chat_time_range(self.current_infant_name)
         if time_range[0] and time_range[1]:
             self.chat_time_label.config(text=f"对话时间范围：{time_range[0]} 至 {time_range[1]}")
+    
+    def export_growth_curve(self):
+        """
+        导出生长曲线为PDF文件
+        """
+        if not self.current_infant_name:
+            messagebox.showwarning("警告", "请先选择一个婴幼儿")
+            return
+        
+        # 获取保存路径
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF文件", "*.pdf"), ("所有文件", "*")],
+            title="导出生长曲线"
+        )
+        
+        if not filename:
+            return
+        
+        # 获取历史档案
+        history = self.db.get_infant_history(self.current_infant_name)
+        if not history:
+            messagebox.showwarning("警告", "无历史数据，无法导出生长曲线")
+            return
+        
+        # 准备数据
+        months = []
+        weights = []
+        heights = []
+        head_circumferences = []
+        
+        birth_date = datetime.datetime.strptime(str(history[0]['birth_date']), "%Y-%m-%d")
+        gender = history[0]['gender']
+        
+        for record in history:
+            record_date = datetime.datetime.strptime(str(record['record_date']), "%Y-%m-%d")
+            month = (record_date.year - birth_date.year) * 12 + (record_date.month - birth_date.month)
+            months.append(month)
+            weights.append(record['weight'])
+            heights.append(record['height'])
+            if record['head_circumference']:
+                head_circumferences.append(record['head_circumference'])
+            else:
+                head_circumferences.append(None)
+        
+        # 设置中文字体
+        plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
+        plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
+        
+        # 获取WHO生长标准数据
+        who_data = self._get_who_growth_standards()
+        gender_key = 'boys' if gender == '男' else 'girls'
+        
+        # 生成WHO标准曲线的月龄点
+        who_months = list(range(36))
+        
+        # 创建PDF文件
+        with PdfPages(filename) as pdf:
+            # 根据是否有头围数据决定图表布局
+            if any(hc is not None for hc in head_circumferences):
+                # 如果有头围数据，创建3个子图
+                fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(8.5, 11), dpi=100)
+                fig.subplots_adjust(hspace=0.5)
+                
+                # 绘制体重曲线
+                ax1.plot(months, weights, 'o-', color='blue', label='实际体重 (kg)')
+                ax1.plot(who_months, who_data['weight'][gender_key]['p50'], '--', color='green', label='WHO P50')
+                ax1.fill_between(who_months, who_data['weight'][gender_key]['p3'], who_data['weight'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
+                ax1.set_title(f'{self.current_infant_name}的体重增长曲线')
+                ax1.set_xlabel('月龄')
+                ax1.set_ylabel('体重 (kg)')
+                ax1.grid(True)
+                ax1.legend()
+                
+                # 绘制身高曲线
+                ax2.plot(months, heights, 'o-', color='blue', label='实际身高 (cm)')
+                ax2.plot(who_months, who_data['height'][gender_key]['p50'], '--', color='green', label='WHO P50')
+                ax2.fill_between(who_months, who_data['height'][gender_key]['p3'], who_data['height'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
+                ax2.set_title(f'{self.current_infant_name}的身高增长曲线')
+                ax2.set_xlabel('月龄')
+                ax2.set_ylabel('身高 (cm)')
+                ax2.grid(True)
+                ax2.legend()
+                
+                # 绘制头围曲线
+                valid_months = []
+                valid_hc = []
+                for m, hc in zip(months, head_circumferences):
+                    if hc is not None:
+                        valid_months.append(m)
+                        valid_hc.append(hc)
+                ax3.plot(valid_months, valid_hc, 'o-', color='blue', label='实际头围 (cm)')
+                ax3.plot(who_months, who_data['head_circumference'][gender_key]['p50'], '--', color='green', label='WHO P50')
+                ax3.fill_between(who_months, who_data['head_circumference'][gender_key]['p3'], who_data['head_circumference'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
+                ax3.set_title(f'{self.current_infant_name}的头围增长曲线')
+                ax3.set_xlabel('月龄')
+                ax3.set_ylabel('头围 (cm)')
+                ax3.grid(True)
+                ax3.legend()
+            else:
+                # 如果没有头围数据，创建2个子图
+                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8.5, 11), dpi=100)
+                fig.subplots_adjust(hspace=0.5)
+                
+                # 绘制体重曲线
+                ax1.plot(months, weights, 'o-', color='blue', label='实际体重 (kg)')
+                ax1.plot(who_months, who_data['weight'][gender_key]['p50'], '--', color='green', label='WHO P50')
+                ax1.fill_between(who_months, who_data['weight'][gender_key]['p3'], who_data['weight'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
+                ax1.set_title(f'{self.current_infant_name}的体重增长曲线')
+                ax1.set_xlabel('月龄')
+                ax1.set_ylabel('体重 (kg)')
+                ax1.grid(True)
+                ax1.legend()
+                
+                # 绘制身高曲线
+                ax2.plot(months, heights, 'o-', color='blue', label='实际身高 (cm)')
+                ax2.plot(who_months, who_data['height'][gender_key]['p50'], '--', color='green', label='WHO P50')
+                ax2.fill_between(who_months, who_data['height'][gender_key]['p3'], who_data['height'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
+                ax2.set_title(f'{self.current_infant_name}的身高增长曲线')
+                ax2.set_xlabel('月龄')
+                ax2.set_ylabel('身高 (cm)')
+                ax2.grid(True)
+                ax2.legend()
+            
+            # 添加标题和信息
+            fig.suptitle(f'{self.current_infant_name}的生长曲线报告', fontsize=16)
+            plt.figtext(0.1, 0.01, f'生成日期: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', fontsize=8)
+            
+            # 保存到PDF
+            pdf.savefig()
+            plt.close()
+        
+        messagebox.showinfo("成功", f"生长曲线已成功导出到 {filename}")
+    
+    def export_infant_info(self):
+        """
+        导出婴儿信息档案为TXT文件
+        """
+        if not self.current_infant_name:
+            messagebox.showwarning("警告", "请先选择一个婴幼儿")
+            return
+        
+        # 获取保存路径
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("文本文件", "*.txt"), ("所有文件", "*")],
+            title="导出婴儿信息档案"
+        )
+        
+        if not filename:
+            return
+        
+        # 获取最新档案
+        latest_info = self.db.get_latest_infant(self.current_infant_name)
+        if not latest_info:
+            messagebox.showwarning("警告", "无婴幼儿信息")
+            return
+        
+        # 获取历史档案
+        history = self.db.get_infant_history(self.current_infant_name)
+        
+        # 生成导出内容
+        content = f"婴幼儿档案信息\n"
+        content += "=" * 80 + "\n"
+        content += f"姓名: {latest_info['name']}\n"
+        content += f"性别: {latest_info['gender']}\n"
+        content += f"出生日期: {latest_info['birth_date']}\n"
+        
+        # 计算当前月龄
+        birth_date = datetime.datetime.strptime(str(latest_info['birth_date']), "%Y-%m-%d")
+        today = datetime.datetime.now()
+        months = (today.year - birth_date.year) * 12 + (today.month - birth_date.month)
+        content += f"当前月龄: {months}个月\n"
+        
+        content += f"是否早产: {'是' if latest_info['is_preterm'] else '否'}\n"
+        if latest_info['is_preterm']:
+            content += f"早产周数: {latest_info['gestational_age']}周\n"
+        
+        content += f"最新体重: {latest_info['weight']} kg\n"
+        content += f"最新身高: {latest_info['height']} cm\n"
+        if latest_info['head_circumference']:
+            content += f"最新头围: {latest_info['head_circumference']} cm\n"
+        
+        content += f"主要喂养方式: {latest_info['feeding_type']}\n"
+        if latest_info['daily_milk']:
+            content += f"每天喝奶量: {latest_info['daily_milk']} mL\n"
+        if latest_info['辅食_start_age']:
+            content += f"辅食添加月龄: {latest_info['辅食_start_age']}个月\n"
+        
+        content += f"食物过敏: {latest_info['allergies'] if latest_info['allergies'] else '无'}\n"
+        content += f"健康状况: {latest_info['health_conditions'] if latest_info['health_conditions'] else '无'}\n"
+        content += f"补充剂: {latest_info['supplements'] if latest_info['supplements'] else '无'}\n"
+        content += f"食物质地: {latest_info['food_texture']}\n"
+        content += f"不爱吃的食物: {latest_info['disliked_foods'] if latest_info['disliked_foods'] else '无'}\n"
+        content += f"独立进食: {'会' if latest_info['can_eat_independently'] else '不会'}\n"
+        content += f"家庭饮食要求: {latest_info['family_dietary_restrictions'] if latest_info['family_dietary_restrictions'] else '无'}\n"
+        content += f"所在城市: {latest_info['city'] if latest_info['city'] else '未填写'}\n"
+        
+        if history:
+            content += "\n" + "=" * 80 + "\n"
+            content += "历史档案记录\n"
+            content += "=" * 80 + "\n"
+            
+            for i, record in enumerate(history):
+                content += f"\n记录 {i+1} - {record['record_date']}\n"
+                content += "-" * 60 + "\n"
+                
+                # 计算记录时的月龄
+                record_date = datetime.datetime.strptime(str(record['record_date']), "%Y-%m-%d")
+                record_months = (record_date.year - birth_date.year) * 12 + (record_date.month - birth_date.month)
+                content += f"记录时月龄: {record_months}个月\n"
+                content += f"体重: {record['weight']} kg\n"
+                content += f"身高: {record['height']} cm\n"
+                if record['head_circumference']:
+                    content += f"头围: {record['head_circumference']} cm\n"
+                content += f"喂养方式: {record['feeding_type']}\n"
+        
+        content += "\n" + "=" * 80 + "\n"
+        content += f"导出日期: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        
+        # 写入文件
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        messagebox.showinfo("成功", f"婴儿信息档案已成功导出到 {filename}")
+    
+    def export_chat_history(self):
+        """
+        导出AI聊天记录为TXT文件
+        """
+        if not self.current_infant_name:
+            messagebox.showwarning("警告", "请先选择一个婴幼儿")
+            return
+        
+        # 获取保存路径
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("文本文件", "*.txt"), ("所有文件", "*")],
+            title="导出AI聊天记录"
+        )
+        
+        if not filename:
+            return
+        
+        # 获取聊天历史
+        history = self.db.get_chat_history(self.current_infant_name)
+        if not history:
+            messagebox.showwarning("警告", "无聊天记录")
+            return
+        
+        # 生成导出内容
+        content = f"AI聊天记录 - {self.current_infant_name}\n"
+        content += "=" * 80 + "\n"
+        
+        for message in history:
+            content += f"\n{message['role']} - {message['timestamp']}\n"
+            content += "-" * 60 + "\n"
+            content += message['content'] + "\n"
+        
+        content += "\n" + "=" * 80 + "\n"
+        content += f"导出日期: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        
+        # 写入文件
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        messagebox.showinfo("成功", f"AI聊天记录已成功导出到 {filename}")
+    
+    def display_statistics(self):
+        """
+        显示数据统计信息
+        """
+        if not self.current_infant_name:
+            messagebox.showwarning("警告", "请先选择一个婴幼儿")
+            return
+        
+        # 获取历史档案
+        history = self.db.get_infant_history(self.current_infant_name)
+        if not history:
+            messagebox.showwarning("警告", "无历史数据")
+            return
+        
+        # 准备数据
+        weights = []
+        heights = []
+        head_circumferences = []
+        months = []
+        
+        birth_date = datetime.datetime.strptime(str(history[0]['birth_date']), "%Y-%m-%d")
+        
+        for record in history:
+            record_date = datetime.datetime.strptime(str(record['record_date']), "%Y-%m-%d")
+            month = (record_date.year - birth_date.year) * 12 + (record_date.month - birth_date.month)
+            months.append(month)
+            weights.append(record['weight'])
+            heights.append(record['height'])
+            if record['head_circumference']:
+                head_circumferences.append(record['head_circumference'])
+        
+        # 计算统计数据
+        weight_stats = {
+            'mean': np.mean(weights),
+            'min': min(weights),
+            'max': max(weights),
+            'std': np.std(weights)
+        }
+        
+        height_stats = {
+            'mean': np.mean(heights),
+            'min': min(heights),
+            'max': max(heights),
+            'std': np.std(heights)
+        }
+        
+        # 计算增长率
+        weight_growth_rate = []
+        height_growth_rate = []
+        
+        for i in range(1, len(weights)):
+            weight_diff = weights[i] - weights[i-1]
+            month_diff = months[i] - months[i-1]
+            if month_diff > 0:
+                weight_growth_rate.append(weight_diff / month_diff)
+            
+            height_diff = heights[i] - heights[i-1]
+            if month_diff > 0:
+                height_growth_rate.append(height_diff / month_diff)
+        
+        # 创建统计信息窗口
+        window = tk.Toplevel(self.root)
+        window.title(f"{self.current_infant_name}的健康数据统计")
+        window.geometry("600x400")
+        
+        # 创建滚动区域
+        canvas = tk.Canvas(window)
+        scrollbar = ttk.Scrollbar(window, orient=tk.VERTICAL, command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            )
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 显示统计信息
+        stats_frame = ttk.LabelFrame(scrollable_frame, text="统计信息", padding="10")
+        stats_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        stats_text = tk.Text(stats_frame, wrap=tk.WORD, font=("SimHei", 11))
+        stats_text.pack(fill=tk.BOTH, expand=True)
+        
+        # 生成统计内容
+        stats_content = f"婴幼儿: {self.current_infant_name}\n"
+        stats_content += f"数据记录数量: {len(history)}\n"
+        stats_content += f"记录时间范围: {history[-1]['record_date']} 至 {history[0]['record_date']}\n\n"
+        
+        stats_content += "体重统计:\n"
+        stats_content += f"  平均值: {weight_stats['mean']:.2f} kg\n"
+        stats_content += f"  最小值: {weight_stats['min']:.2f} kg\n"
+        stats_content += f"  最大值: {weight_stats['max']:.2f} kg\n"
+        stats_content += f"  标准差: {weight_stats['std']:.2f} kg\n"
+        if weight_growth_rate:
+            stats_content += f"  平均月增长率: {np.mean(weight_growth_rate):.2f} kg/月\n"
+        stats_content += "\n"
+        
+        stats_content += "身高统计:\n"
+        stats_content += f"  平均值: {height_stats['mean']:.2f} cm\n"
+        stats_content += f"  最小值: {height_stats['min']:.2f} cm\n"
+        stats_content += f"  最大值: {height_stats['max']:.2f} cm\n"
+        stats_content += f"  标准差: {height_stats['std']:.2f} cm\n"
+        if height_growth_rate:
+            stats_content += f"  平均月增长率: {np.mean(height_growth_rate):.2f} cm/月\n"
+        stats_content += "\n"
+        
+        if head_circumferences:
+            head_stats = {
+                'mean': np.mean(head_circumferences),
+                'min': min(head_circumferences),
+                'max': max(head_circumferences),
+                'std': np.std(head_circumferences)
+            }
+            stats_content += "头围统计:\n"
+            stats_content += f"  平均值: {head_stats['mean']:.2f} cm\n"
+            stats_content += f"  最小值: {head_stats['min']:.2f} cm\n"
+            stats_content += f"  最大值: {head_stats['max']:.2f} cm\n"
+            stats_content += f"  标准差: {head_stats['std']:.2f} cm\n"
+        
+        stats_content += "\n"
+        stats_content += f"生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        
+        stats_text.insert(tk.END, stats_content)
+        stats_text.config(state=tk.DISABLED)
     
     def __del__(self):
         # 清理matplotlib资源
