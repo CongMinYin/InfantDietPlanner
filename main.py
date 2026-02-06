@@ -77,8 +77,8 @@ class InfantHealthSystem:
     def __init__(self, root):
         self.root = root
         self.root.title("婴幼儿健康系统")
-        self.root.geometry("1200x800")
-        self.root.minsize(1000, 600)
+        self.root.geometry("1920x1920")
+        self.root.minsize(1920, 1920)
         
         # 初始化属性
         self.current_infant_name = None
@@ -104,9 +104,9 @@ class InfantHealthSystem:
         self.main_frame = ttk.Frame(self.root, padding="10")
         self.main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # 创建左侧婴幼儿信息管理区域
+        # 创建左侧婴幼儿信息管理区域 - 增大宽度
         self.left_frame = ttk.LabelFrame(self.main_frame, text="婴幼儿档案管理", padding="10")
-        self.left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=False, padx=(0, 10))
+        self.left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=False, padx=(0, 10), ipadx=20)
         
         # 创建右侧聊天区域
         self.right_frame = ttk.LabelFrame(self.main_frame, text="AI健康顾问", padding="10")
@@ -169,7 +169,7 @@ class InfantHealthSystem:
         self.info_frame = ttk.LabelFrame(self.left_frame, text="基本信息", padding="10")
         self.info_frame.pack(fill=tk.BOTH, expand=False, pady=(0, 10))
         
-        self.info_text = tk.Text(self.info_frame, wrap=tk.WORD, state=tk.DISABLED, height=10)
+        self.info_text = tk.Text(self.info_frame, wrap=tk.WORD, state=tk.DISABLED, height=12, font=("SimHei", 12))
         self.info_text.pack(fill=tk.BOTH, expand=True)
         
         # 生长曲线区域
@@ -194,22 +194,22 @@ class InfantHealthSystem:
         self.chat_time_label = ttk.Label(setting_frame, text="对话时间范围：无")
         self.chat_time_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
-        # 聊天记录区域
+        # 聊天记录区域 - 减少垂直扩展比例
         self.chat_frame = ttk.Frame(self.right_frame)
-        self.chat_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        self.chat_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
         
-        self.chat_text = tk.Text(self.chat_frame, wrap=tk.WORD, state=tk.DISABLED)
+        self.chat_text = tk.Text(self.chat_frame, wrap=tk.WORD, state=tk.DISABLED, font=("SimHei", 12))
         self.chat_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
         scrollbar = ttk.Scrollbar(self.chat_frame, orient=tk.VERTICAL, command=self.chat_text.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.chat_text.config(yscrollcommand=scrollbar.set)
         
-        # 输入区域
+        # 输入区域 - 增大高度并允许垂直扩展
         input_frame = ttk.Frame(self.right_frame)
-        input_frame.pack(fill=tk.X)
+        input_frame.pack(fill=tk.BOTH, expand=False, pady=(5, 0))
         
-        self.input_text = tk.Text(input_frame, height=3, wrap=tk.WORD)
+        self.input_text = tk.Text(input_frame, height=8, wrap=tk.WORD, font=("SimHei", 12))
         self.input_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
         
         send_button = ttk.Button(input_frame, text="发送", command=self.send_message, width=10)
@@ -663,33 +663,36 @@ class InfantHealthSystem:
         for widget in self.growth_frame.winfo_children():
             widget.destroy()
         
-        # 创建图形
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6), dpi=100)
-        fig.subplots_adjust(hspace=0.5)
+        # 确保matplotlib不会阻塞主线程
+        plt.ioff()
         
         # 设置中文字体
         plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
         plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
         
-        # 绘制体重曲线
-        ax1.plot(months, weights, 'o-', color='blue', label='体重 (kg)')
-        ax1.set_title('体重增长曲线')
-        ax1.set_xlabel('月龄')
-        ax1.set_ylabel('体重 (kg)')
-        ax1.grid(True)
-        ax1.legend()
-        
-        # 绘制身高曲线
-        ax2.plot(months, heights, 'o-', color='green', label='身高 (cm)')
-        ax2.set_title('身高增长曲线')
-        ax2.set_xlabel('月龄')
-        ax2.set_ylabel('身高 (cm)')
-        ax2.grid(True)
-        ax2.legend()
-        
-        # 如果有头围数据，绘制头围曲线
+        # 根据是否有头围数据决定图表布局
         if any(hc is not None for hc in head_circumferences):
-            fig3, ax3 = plt.subplots(figsize=(8, 3), dpi=100)
+            # 如果有头围数据，创建3个子图
+            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(7, 7), dpi=100)
+            fig.subplots_adjust(hspace=0.5)
+            
+            # 绘制体重曲线
+            ax1.plot(months, weights, 'o-', color='blue', label='体重 (kg)')
+            ax1.set_title('体重增长曲线')
+            ax1.set_xlabel('月龄')
+            ax1.set_ylabel('体重 (kg)')
+            ax1.grid(True)
+            ax1.legend()
+            
+            # 绘制身高曲线
+            ax2.plot(months, heights, 'o-', color='green', label='身高 (cm)')
+            ax2.set_title('身高增长曲线')
+            ax2.set_xlabel('月龄')
+            ax2.set_ylabel('身高 (cm)')
+            ax2.grid(True)
+            ax2.legend()
+            
+            # 绘制头围曲线
             # 过滤出头围数据
             valid_months = []
             valid_hc = []
@@ -703,16 +706,34 @@ class InfantHealthSystem:
             ax3.set_ylabel('头围 (cm)')
             ax3.grid(True)
             ax3.legend()
+        else:
+            # 如果没有头围数据，创建2个子图
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 5), dpi=100)
+            fig.subplots_adjust(hspace=0.5)
             
-            # 将头围曲线添加到界面
-            canvas3 = FigureCanvasTkAgg(fig3, master=self.growth_frame)
-            canvas3.draw()
-            canvas3.get_tk_widget().pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+            # 绘制体重曲线
+            ax1.plot(months, weights, 'o-', color='blue', label='体重 (kg)')
+            ax1.set_title('体重增长曲线')
+            ax1.set_xlabel('月龄')
+            ax1.set_ylabel('体重 (kg)')
+            ax1.grid(True)
+            ax1.legend()
+            
+            # 绘制身高曲线
+            ax2.plot(months, heights, 'o-', color='green', label='身高 (cm)')
+            ax2.set_title('身高增长曲线')
+            ax2.set_xlabel('月龄')
+            ax2.set_ylabel('身高 (cm)')
+            ax2.grid(True)
+            ax2.legend()
         
         # 将图表添加到界面
         canvas = FigureCanvasTkAgg(fig, master=self.growth_frame)
         canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        
+        # 手动清理matplotlib资源
+        plt.close('all')
     
     def add_message_to_chat(self, role, content, timestamp):
         # 添加消息到聊天界面
@@ -835,11 +856,45 @@ class InfantHealthSystem:
             self.chat_time_label.config(text=f"对话时间范围：{time_range[0]} 至 {time_range[1]}")
     
     def __del__(self):
-        # 关闭数据库连接
-        if hasattr(self, 'db') and self.db:
-            self.db.close()
+        # 清理matplotlib资源
+        try:
+            import matplotlib.pyplot as plt
+            plt.close('all')
+        except Exception:
+            pass
+        
+        # 关闭数据库连接 - 只在on_closing未执行时才执行
+        # 避免重复关闭导致的错误
+        pass
+
+def on_closing(root, app):
+    """
+    处理窗口关闭事件
+    """
+    try:
+        # 清理matplotlib资源
+        import matplotlib.pyplot as plt
+        plt.close('all')
+    except Exception:
+        pass
+    
+    # 关闭数据库连接
+    if hasattr(app, 'db') and app.db:
+        try:
+            app.db.close()
+        except Exception as e:
+            # 忽略已经关闭的错误
+            if "Already closed" not in str(e):
+                pass
+    
+    # 销毁窗口
+    root.destroy()
 
 if __name__ == "__main__":
     root = tk.Tk()
     app = InfantHealthSystem(root)
+    
+    # 添加窗口关闭事件处理
+    root.protocol("WM_DELETE_WINDOW", lambda: on_closing(root, app))
+    
     root.mainloop()
