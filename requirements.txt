@@ -1,0 +1,13 @@
+# InfantDietPlanner 依赖项
+
+# AI集成
+openai
+
+# 数据库连接
+pymysql
+
+# 数据可视化和PDF导出
+matplotlib
+
+# 数据处理
+numpy

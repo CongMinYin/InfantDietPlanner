@@ -37,7 +37,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 from openai import OpenAI
 
 class AIService:
-    def __init__(self, api_key="ms-69a997c4-097d-4620-a034-dfc4e7112c09"):
+    def __init__(self, api_key="*******************"):
         self.api_key = api_key
         self.base_url = "https://api-inference.modelscope.cn/v1/"
         self.client = None
