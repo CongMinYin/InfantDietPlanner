@@ -1,9 +1,11 @@
 import pymysql
+import sqlite3
 import os
 import datetime
 
 class Database:
-    def __init__(self, host='localhost', user='root', password='123456', db='infant_health'):
+    def __init__(self, db_type='sqlite', host='localhost', user='root', password='123456', db='infant_health'):
+        self.db_type = db_type
         self.host = host
         self.user = user
         self.password = password
@@ -12,6 +14,20 @@ class Database:
         self.cursor = None
     
     def connect(self):
+        """
+        连接到数据库
+        :return: 是否连接成功
+        """
+        try:
+            if self.db_type == 'mysql':
+                return self._connect_mysql()
+            else:  # sqlite
+                return self._connect_sqlite()
+        except Exception as e:
+            print(f"数据库连接失败: {e}")
+            return False
+    
+    def _connect_mysql(self):
         """
         连接到MySQL数据库
         :return: 是否连接成功
@@ -45,7 +61,25 @@ class Database:
             self.init_db()
             return True
         except Exception as e:
-            print(f"数据库连接失败: {e}")
+            print(f"MySQL连接失败: {e}")
+            return False
+    
+    def _connect_sqlite(self):
+        """
+        连接到SQLite数据库
+        :return: 是否连接成功
+        """
+        try:
+            # 连接到SQLite数据库文件
+            db_path = f"{self.db}.db"
+            self.conn = sqlite3.connect(db_path)
+            # 设置为返回字典格式
+            self.conn.row_factory = sqlite3.Row
+            self.cursor = self.conn.cursor()
+            self.init_db()
+            return True
+        except Exception as e:
+            print(f"SQLite连接失败: {e}")
             return False
     
     def init_db(self):
@@ -56,78 +90,148 @@ class Database:
             return
         
         try:
-            # 创建婴幼儿档案表
-            self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS infant_profile (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(50) NOT NULL,
-                gender VARCHAR(10) NOT NULL,
-                birth_date DATE NOT NULL,
-                is_preterm TINYINT NOT NULL,
-                gestational_age INT,
-                weight DECIMAL(5,2),
-                height DECIMAL(5,2),
-                head_circumference DECIMAL(5,2),
-                feeding_type VARCHAR(50),
-                daily_milk DECIMAL(6,2),
-                辅食_start_age DECIMAL(3,1),
-                allergies TEXT,
-                health_conditions TEXT,
-                supplements TEXT,
-                food_texture VARCHAR(50),
-                disliked_foods TEXT,
-                can_eat_independently TINYINT,
-                family_dietary_restrictions TEXT,
-                city VARCHAR(100),
-                record_date DATE NOT NULL, -- 记录日期，用于区分不同时期的档案
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            ''')
-            
-            # 创建索引，提高查询速度
-            try:
-                self.cursor.execute('CREATE INDEX idx_infant_profile_name ON infant_profile (name)')
-            except Exception:
-                pass
-            try:
-                self.cursor.execute('CREATE INDEX idx_infant_profile_record_date ON infant_profile (record_date)')
-            except Exception:
-                pass
-            
-            # 创建对话上下文消息表
-            self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS chat_context (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                infant_name VARCHAR(50) NOT NULL,
-                role VARCHAR(20) NOT NULL,
-                content TEXT NOT NULL,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            ''')
-            
-            # 创建索引，提高查询速度
-            try:
-                self.cursor.execute('CREATE INDEX idx_chat_context_infant_name ON chat_context (infant_name)')
-            except Exception:
-                pass
-            
-            # 创建索引，提高查询速度
-            # 使用更兼容的方式创建索引
-            try:
-                self.cursor.execute('CREATE INDEX idx_chat_context_infant_id ON chat_context (infant_id)')
-            except Exception:
-                pass  # 索引已存在，忽略错误
-            
-            try:
-                self.cursor.execute('CREATE INDEX idx_chat_context_timestamp ON chat_context (timestamp)')
-            except Exception:
-                pass  # 索引已存在，忽略错误
-            
-            self.conn.commit()
+            if self.db_type == 'mysql':
+                self._init_mysql_db()
+            else:  # sqlite
+                self._init_sqlite_db()
         except Exception as e:
             print(f"数据库初始化失败: {e}")
-            self.conn.rollback()
+            if self.conn:
+                self.conn.rollback()
+    
+    def _init_mysql_db(self):
+        """
+        初始化MySQL数据库表结构
+        """
+        # 创建婴幼儿档案表
+        self.cursor.execute('''
+        CREATE TABLE IF NOT EXISTS infant_profile (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(50) NOT NULL,
+            gender VARCHAR(10) NOT NULL,
+            birth_date DATE NOT NULL,
+            is_preterm TINYINT NOT NULL,
+            gestational_age INT,
+            weight DECIMAL(5,2),
+            height DECIMAL(5,2),
+            head_circumference DECIMAL(5,2),
+            feeding_type VARCHAR(50),
+            daily_milk DECIMAL(6,2),
+            辅食_start_age DECIMAL(3,1),
+            allergies TEXT,
+            health_conditions TEXT,
+            supplements TEXT,
+            food_texture VARCHAR(50),
+            disliked_foods TEXT,
+            can_eat_independently TINYINT,
+            family_dietary_restrictions TEXT,
+            city VARCHAR(100),
+            record_date DATE NOT NULL, -- 记录日期，用于区分不同时期的档案
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ''')
+        
+        # 创建索引，提高查询速度
+        try:
+            self.cursor.execute('CREATE INDEX idx_infant_profile_name ON infant_profile (name)')
+        except Exception:
+            pass
+        try:
+            self.cursor.execute('CREATE INDEX idx_infant_profile_record_date ON infant_profile (record_date)')
+        except Exception:
+            pass
+        
+        # 创建对话上下文消息表
+        self.cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chat_context (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            infant_name VARCHAR(50) NOT NULL,
+            role VARCHAR(20) NOT NULL,
+            content TEXT NOT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ''')
+        
+        # 创建索引，提高查询速度
+        try:
+            self.cursor.execute('CREATE INDEX idx_chat_context_infant_name ON chat_context (infant_name)')
+        except Exception:
+            pass
+        
+        try:
+            self.cursor.execute('CREATE INDEX idx_chat_context_timestamp ON chat_context (timestamp)')
+        except Exception:
+            pass  # 索引已存在，忽略错误
+        
+        self.conn.commit()
+    
+    def _init_sqlite_db(self):
+        """
+        初始化SQLite数据库表结构
+        """
+        # 创建婴幼儿档案表
+        self.cursor.execute('''
+        CREATE TABLE IF NOT EXISTS infant_profile (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            gender TEXT NOT NULL,
+            birth_date DATE NOT NULL,
+            is_preterm INTEGER NOT NULL,
+            gestational_age INTEGER,
+            weight REAL,
+            height REAL,
+            head_circumference REAL,
+            feeding_type TEXT,
+            daily_milk REAL,
+            辅食_start_age REAL,
+            allergies TEXT,
+            health_conditions TEXT,
+            supplements TEXT,
+            food_texture TEXT,
+            disliked_foods TEXT,
+            can_eat_independently INTEGER,
+            family_dietary_restrictions TEXT,
+            city TEXT,
+            record_date DATE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        
+        # 创建索引，提高查询速度
+        try:
+            self.cursor.execute('CREATE INDEX idx_infant_profile_name ON infant_profile (name)')
+        except Exception:
+            pass
+        try:
+            self.cursor.execute('CREATE INDEX idx_infant_profile_record_date ON infant_profile (record_date)')
+        except Exception:
+            pass
+        
+        # 创建对话上下文消息表
+        self.cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chat_context (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            infant_name TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        
+        # 创建索引，提高查询速度
+        try:
+            self.cursor.execute('CREATE INDEX idx_chat_context_infant_name ON chat_context (infant_name)')
+        except Exception:
+            pass
+        
+        try:
+            self.cursor.execute('CREATE INDEX idx_chat_context_timestamp ON chat_context (timestamp)')
+        except Exception:
+            pass  # 索引已存在，忽略错误
+        
+        self.conn.commit()
     
     def close(self):
         if self.conn:
@@ -136,10 +240,11 @@ class Database:
             except Exception as e:
                 print(f"关闭数据库连接失败: {e}")
     
-    def set_connection(self, host, user, password, db):
+    def set_connection(self, host='localhost', user='root', password='123456', db='infant_health', db_type='sqlite'):
         """
         设置数据库连接参数
         """
+        self.db_type = db_type
         self.host = host
         self.user = user
         self.password = password
@@ -153,15 +258,27 @@ class Database:
         # 如果没有提供record_date，使用当前日期
         record_date = data.get('record_date', datetime.datetime.now().strftime('%Y-%m-%d'))
         
-        query = '''
-        INSERT INTO infant_profile (
-            name, gender, birth_date, is_preterm, gestational_age, 
-            weight, height, head_circumference, feeding_type, daily_milk, 
-            辅食_start_age, allergies, health_conditions, supplements, 
-            food_texture, disliked_foods, can_eat_independently, 
-            family_dietary_restrictions, city, record_date
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        '''
+        if self.db_type == 'mysql':
+            query = '''
+            INSERT INTO infant_profile (
+                name, gender, birth_date, is_preterm, gestational_age, 
+                weight, height, head_circumference, feeding_type, daily_milk, 
+                辅食_start_age, allergies, health_conditions, supplements, 
+                food_texture, disliked_foods, can_eat_independently, 
+                family_dietary_restrictions, city, record_date
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            '''
+        else:  # sqlite
+            query = '''
+            INSERT INTO infant_profile (
+                name, gender, birth_date, is_preterm, gestational_age, 
+                weight, height, head_circumference, feeding_type, daily_milk, 
+                辅食_start_age, allergies, health_conditions, supplements, 
+                food_texture, disliked_foods, can_eat_independently, 
+                family_dietary_restrictions, city, record_date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            '''
+        
         self.cursor.execute(query, (
             data['name'], data['gender'], data['birth_date'], data['is_preterm'], 
             data['gestational_age'], data['weight'], data['height'], 
@@ -175,7 +292,10 @@ class Database:
         return self.cursor.lastrowid
     
     def get_infant(self, infant_id):
-        self.cursor.execute('SELECT * FROM infant_profile WHERE id = %s', (infant_id,))
+        if self.db_type == 'mysql':
+            self.cursor.execute('SELECT * FROM infant_profile WHERE id = %s', (infant_id,))
+        else:  # sqlite
+            self.cursor.execute('SELECT * FROM infant_profile WHERE id = ?', (infant_id,))
         return self.cursor.fetchone()
     
     def get_latest_infant(self, name):
@@ -184,12 +304,20 @@ class Database:
         :param name: 婴幼儿姓名
         :return: 最新档案信息
         """
-        self.cursor.execute('''
-        SELECT * FROM infant_profile 
-        WHERE name = %s 
-        ORDER BY record_date DESC 
-        LIMIT 1
-        ''', (name,))
+        if self.db_type == 'mysql':
+            self.cursor.execute('''
+            SELECT * FROM infant_profile 
+            WHERE name = %s 
+            ORDER BY record_date DESC 
+            LIMIT 1
+            ''', (name,))
+        else:  # sqlite
+            self.cursor.execute('''
+            SELECT * FROM infant_profile 
+            WHERE name = ? 
+            ORDER BY record_date DESC 
+            LIMIT 1
+            ''', (name,))
         return self.cursor.fetchone()
     
     def get_all_infants(self):
@@ -205,23 +333,41 @@ class Database:
         :param name: 婴幼儿姓名
         :return: 历史档案列表
         """
-        self.cursor.execute('''
-        SELECT * FROM infant_profile 
-        WHERE name = %s 
-        ORDER BY record_date DESC
-        ''', (name,))
+        if self.db_type == 'mysql':
+            self.cursor.execute('''
+            SELECT * FROM infant_profile 
+            WHERE name = %s 
+            ORDER BY record_date DESC
+            ''', (name,))
+        else:  # sqlite
+            self.cursor.execute('''
+            SELECT * FROM infant_profile 
+            WHERE name = ? 
+            ORDER BY record_date DESC
+            ''', (name,))
         return self.cursor.fetchall()
     
     def update_infant(self, infant_id, data):
-        query = '''
-        UPDATE infant_profile SET 
-            name = %s, gender = %s, birth_date = %s, is_preterm = %s, gestational_age = %s, 
-            weight = %s, height = %s, head_circumference = %s, feeding_type = %s, daily_milk = %s, 
-            辅食_start_age = %s, allergies = %s, health_conditions = %s, supplements = %s, 
-            food_texture = %s, disliked_foods = %s, can_eat_independently = %s, 
-            family_dietary_restrictions = %s, city = %s
-        WHERE id = %s
-        '''
+        if self.db_type == 'mysql':
+            query = '''
+            UPDATE infant_profile SET 
+                name = %s, gender = %s, birth_date = %s, is_preterm = %s, gestational_age = %s, 
+                weight = %s, height = %s, head_circumference = %s, feeding_type = %s, daily_milk = %s, 
+                辅食_start_age = %s, allergies = %s, health_conditions = %s, supplements = %s, 
+                food_texture = %s, disliked_foods = %s, can_eat_independently = %s, 
+                family_dietary_restrictions = %s, city = %s
+            WHERE id = %s
+            '''
+        else:  # sqlite
+            query = '''
+            UPDATE infant_profile SET 
+                name = ?, gender = ?, birth_date = ?, is_preterm = ?, gestational_age = ?, 
+                weight = ?, height = ?, head_circumference = ?, feeding_type = ?, daily_milk = ?, 
+                辅食_start_age = ?, allergies = ?, health_conditions = ?, supplements = ?, 
+                food_texture = ?, disliked_foods = ?, can_eat_independently = ?, 
+                family_dietary_restrictions = ?, city = ?
+            WHERE id = ?
+            '''
         self.cursor.execute(query, (
             data['name'], data['gender'], data['birth_date'], data['is_preterm'], 
             data['gestational_age'], data['weight'], data['height'], 
@@ -235,59 +381,141 @@ class Database:
         return self.cursor.rowcount > 0
     
     def delete_infant(self, infant_id):
-        # 先删除相关的对话记录
-        self.cursor.execute('DELETE FROM chat_context WHERE infant_id = %s', (infant_id,))
+        # 先获取婴幼儿姓名，因为chat_context表使用的是infant_name字段
+        if self.db_type == 'mysql':
+            self.cursor.execute('SELECT name FROM infant_profile WHERE id = %s', (infant_id,))
+        else:  # sqlite
+            self.cursor.execute('SELECT name FROM infant_profile WHERE id = ?', (infant_id,))
+        infant = self.cursor.fetchone()
+        
+        if infant:
+            infant_name = infant['name'] if self.db_type == 'mysql' else infant[0]
+            # 删除相关的对话记录
+            if self.db_type == 'mysql':
+                self.cursor.execute('DELETE FROM chat_context WHERE infant_name = %s', (infant_name,))
+            else:  # sqlite
+                self.cursor.execute('DELETE FROM chat_context WHERE infant_name = ?', (infant_name,))
+        
         # 再删除婴幼儿档案
-        self.cursor.execute('DELETE FROM infant_profile WHERE id = %s', (infant_id,))
+        if self.db_type == 'mysql':
+            self.cursor.execute('DELETE FROM infant_profile WHERE id = %s', (infant_id,))
+        else:  # sqlite
+            self.cursor.execute('DELETE FROM infant_profile WHERE id = ?', (infant_id,))
         self.conn.commit()
         return self.cursor.rowcount > 0
+    
+    def delete_infant_history(self, infant_name):
+        """
+        删除指定婴幼儿的所有历史记录
+        :param infant_name: 婴幼儿姓名
+        :return: 是否删除成功
+        """
+        try:
+            # 删除相关的对话记录
+            if self.db_type == 'mysql':
+                self.cursor.execute('DELETE FROM chat_context WHERE infant_name = %s', (infant_name,))
+            else:  # sqlite
+                self.cursor.execute('DELETE FROM chat_context WHERE infant_name = ?', (infant_name,))
+            
+            # 删除该婴幼儿的所有档案记录
+            if self.db_type == 'mysql':
+                self.cursor.execute('DELETE FROM infant_profile WHERE name = %s', (infant_name,))
+            else:  # sqlite
+                self.cursor.execute('DELETE FROM infant_profile WHERE name = ?', (infant_name,))
+            
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print(f"删除历史记录失败: {e}")
+            if self.conn:
+                self.conn.rollback()
+            return False
     
     # 对话上下文相关方法
     def add_chat_message(self, infant_name, role, content):
         # 检查当前对话消息数量
-        self.cursor.execute('SELECT COUNT(*) FROM chat_context WHERE infant_name = %s', (infant_name,))
-        count = self.cursor.fetchone()['COUNT(*)']
+        if self.db_type == 'mysql':
+            self.cursor.execute('SELECT COUNT(*) FROM chat_context WHERE infant_name = %s', (infant_name,))
+        else:  # sqlite
+            self.cursor.execute('SELECT COUNT(*) FROM chat_context WHERE infant_name = ?', (infant_name,))
+        count = self.cursor.fetchone()[0] if self.db_type == 'sqlite' else self.cursor.fetchone()['COUNT(*)']
         
         # 如果超过20条，删除最早的消息
         if count >= 20:
-            self.cursor.execute('''
-            DELETE FROM chat_context 
-            WHERE infant_name = %s AND id IN (
-                SELECT id FROM chat_context 
-                WHERE infant_name = %s 
-                ORDER BY timestamp ASC 
-                LIMIT %s
-            )
-            ''', (infant_name, infant_name, count - 19))
+            if self.db_type == 'mysql':
+                self.cursor.execute('''
+                DELETE FROM chat_context 
+                WHERE infant_name = %s AND id IN (
+                    SELECT id FROM chat_context 
+                    WHERE infant_name = %s 
+                    ORDER BY timestamp ASC 
+                    LIMIT %s
+                )
+                ''', (infant_name, infant_name, count - 19))
+            else:  # sqlite
+                self.cursor.execute('''
+                DELETE FROM chat_context 
+                WHERE infant_name = ? AND id IN (
+                    SELECT id FROM chat_context 
+                    WHERE infant_name = ? 
+                    ORDER BY timestamp ASC 
+                    LIMIT ?
+                )
+                ''', (infant_name, infant_name, count - 19))
         
         # 添加新消息
-        self.cursor.execute('''
-        INSERT INTO chat_context (infant_name, role, content) 
-        VALUES (%s, %s, %s)
-        ''', (infant_name, role, content))
+        if self.db_type == 'mysql':
+            self.cursor.execute('''
+            INSERT INTO chat_context (infant_name, role, content) 
+            VALUES (%s, %s, %s)
+            ''', (infant_name, role, content))
+        else:  # sqlite
+            self.cursor.execute('''
+            INSERT INTO chat_context (infant_name, role, content) 
+            VALUES (?, ?, ?)
+            ''', (infant_name, role, content))
         self.conn.commit()
         return self.cursor.lastrowid
     
     def get_chat_history(self, infant_name, limit=20):
-        self.cursor.execute('''
-        SELECT role, content, timestamp 
-        FROM chat_context 
-        WHERE infant_name = %s 
-        ORDER BY timestamp ASC 
-        LIMIT %s
-        ''', (infant_name, limit))
+        if self.db_type == 'mysql':
+            self.cursor.execute('''
+            SELECT role, content, timestamp 
+            FROM chat_context 
+            WHERE infant_name = %s 
+            ORDER BY timestamp ASC 
+            LIMIT %s
+            ''', (infant_name, limit))
+        else:  # sqlite
+            self.cursor.execute('''
+            SELECT role, content, timestamp 
+            FROM chat_context 
+            WHERE infant_name = ? 
+            ORDER BY timestamp ASC 
+            LIMIT ?
+            ''', (infant_name, limit))
         return self.cursor.fetchall()
     
     def get_chat_time_range(self, infant_name):
-        self.cursor.execute('''
-        SELECT MIN(timestamp) as min_time, MAX(timestamp) as max_time 
-        FROM chat_context 
-        WHERE infant_name = %s
-        ''', (infant_name,))
+        if self.db_type == 'mysql':
+            self.cursor.execute('''
+            SELECT MIN(timestamp) as min_time, MAX(timestamp) as max_time 
+            FROM chat_context 
+            WHERE infant_name = %s
+            ''', (infant_name,))
+        else:  # sqlite
+            self.cursor.execute('''
+            SELECT MIN(timestamp) as min_time, MAX(timestamp) as max_time 
+            FROM chat_context 
+            WHERE infant_name = ?
+            ''', (infant_name,))
         result = self.cursor.fetchone()
         return (result['min_time'], result['max_time']) if result else (None, None)
     
     def clear_chat_history(self, infant_name):
-        self.cursor.execute('DELETE FROM chat_context WHERE infant_name = %s', (infant_name,))
+        if self.db_type == 'mysql':
+            self.cursor.execute('DELETE FROM chat_context WHERE infant_name = %s', (infant_name,))
+        else:  # sqlite
+            self.cursor.execute('DELETE FROM chat_context WHERE infant_name = ?', (infant_name,))
         self.conn.commit()
         return self.cursor.rowcount > 0

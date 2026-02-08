@@ -8,15 +8,15 @@ import numpy as np
 from database import Database
 from ai_service import AIService
 
-class DatabaseConnectDialog:
+class DatabaseSelectDialog:
     def __init__(self, parent):
         self.parent = parent
         self.result = None
         
         # 创建弹窗
         self.window = tk.Toplevel(parent)
-        self.window.title("连接数据库")
-        self.window.geometry("400x300")
+        self.window.title("选择数据库")
+        self.window.geometry("500x400")
         self.window.transient(parent)
         self.window.grab_set()
         
@@ -24,46 +24,64 @@ class DatabaseConnectDialog:
         self.main_frame = ttk.Frame(self.window, padding="20")
         self.main_frame.pack(fill=tk.BOTH, expand=True)
         
+        # 数据库类型选择
+        type_frame = ttk.LabelFrame(self.main_frame, text="数据库类型", padding="10")
+        type_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        self.db_type_var = tk.StringVar(value="sqlite")
+        
+        ttk.Radiobutton(type_frame, text="SQLite (嵌入式，无需安装)", variable=self.db_type_var, value="sqlite").pack(anchor=tk.W, pady=(5, 0))
+        ttk.Radiobutton(type_frame, text="MySQL (需要安装MySQL服务)", variable=self.db_type_var, value="mysql").pack(anchor=tk.W, pady=(5, 0))
+        
+        # MySQL连接参数
+        self.mysql_frame = ttk.LabelFrame(self.main_frame, text="MySQL连接参数", padding="10")
+        self.mysql_frame.pack(fill=tk.X, pady=(0, 15))
+        
         # 主机
-        host_frame = ttk.Frame(self.main_frame)
+        host_frame = ttk.Frame(self.mysql_frame)
         host_frame.pack(fill=tk.X, pady=(0, 10))
         ttk.Label(host_frame, text="主机：", width=10).pack(side=tk.LEFT, anchor=tk.W)
         self.host_var = tk.StringVar(value="localhost")
         ttk.Entry(host_frame, textvariable=self.host_var, width=30).pack(side=tk.LEFT)
         
         # 用户名
-        user_frame = ttk.Frame(self.main_frame)
+        user_frame = ttk.Frame(self.mysql_frame)
         user_frame.pack(fill=tk.X, pady=(0, 10))
         ttk.Label(user_frame, text="用户名：", width=10).pack(side=tk.LEFT, anchor=tk.W)
         self.user_var = tk.StringVar(value="root")
         ttk.Entry(user_frame, textvariable=self.user_var, width=30).pack(side=tk.LEFT)
         
         # 密码
-        password_frame = ttk.Frame(self.main_frame)
+        password_frame = ttk.Frame(self.mysql_frame)
         password_frame.pack(fill=tk.X, pady=(0, 10))
         ttk.Label(password_frame, text="密码：", width=10).pack(side=tk.LEFT, anchor=tk.W)
         self.password_var = tk.StringVar(value="123456")
         ttk.Entry(password_frame, textvariable=self.password_var, show="*", width=30).pack(side=tk.LEFT)
         
         # 数据库
-        db_frame = ttk.Frame(self.main_frame)
+        db_frame = ttk.Frame(self.mysql_frame)
         db_frame.pack(fill=tk.X, pady=(0, 10))
         ttk.Label(db_frame, text="数据库：", width=10).pack(side=tk.LEFT, anchor=tk.W)
         self.db_var = tk.StringVar(value="infant_health")
         ttk.Entry(db_frame, textvariable=self.db_var, width=30).pack(side=tk.LEFT)
         
-        # 按钮区域
+        # 按钮区域 - 增加垂直空间
         button_frame = ttk.Frame(self.main_frame)
-        button_frame.pack(fill=tk.X, pady=(20, 0))
+        button_frame.pack(fill=tk.X, pady=(30, 0))
         
-        ttk.Button(button_frame, text="连接", command=self.connect).pack(side=tk.RIGHT, padx=(0, 10))
-        ttk.Button(button_frame, text="取消", command=self.cancel).pack(side=tk.RIGHT)
+        # 创建更大的按钮
+        ttk.Button(button_frame, text="连接", command=self.connect, width=15).pack(side=tk.RIGHT, padx=(0, 10))
+        ttk.Button(button_frame, text="取消", command=self.cancel, width=15).pack(side=tk.RIGHT)
+        
+        # 强制更新窗口大小
+        self.window.update_idletasks()
         
         # 显示窗口
         self.window.wait_window()
     
     def connect(self):
         self.result = {
+            'db_type': self.db_type_var.get(),
             'host': self.host_var.get(),
             'user': self.user_var.get(),
             'password': self.password_var.get(),
@@ -172,21 +190,38 @@ class InfantHealthSystem:
         """
         连接数据库
         """
-        dialog = DatabaseConnectDialog(self.root)
+        dialog = DatabaseSelectDialog(self.root)
         if dialog.result:
-            self.db = Database(
-                host=dialog.result['host'],
-                user=dialog.result['user'],
-                password=dialog.result['password'],
-                db=dialog.result['db']
-            )
-            if not self.db.connect():
-                # 连接失败，重新显示对话框
-                retry = messagebox.askretrycancel("连接失败", "数据库连接失败，是否重试？")
-                if retry:
-                    self.connect_database()
-                else:
-                    self.db = None
+            db_type = dialog.result['db_type']
+            if db_type == 'sqlite':
+                # SQLite连接
+                self.db = Database(
+                    db_type='sqlite',
+                    db=dialog.result['db']
+                )
+                if not self.db.connect():
+                    # 连接失败，重新显示对话框
+                    retry = messagebox.askretrycancel("连接失败", "SQLite数据库连接失败，是否重试？")
+                    if retry:
+                        self.connect_database()
+                    else:
+                        self.db = None
+            else:
+                # MySQL连接
+                self.db = Database(
+                    db_type='mysql',
+                    host=dialog.result['host'],
+                    user=dialog.result['user'],
+                    password=dialog.result['password'],
+                    db=dialog.result['db']
+                )
+                if not self.db.connect():
+                    # 连接失败，重新显示对话框
+                    retry = messagebox.askretrycancel("连接失败", "MySQL数据库连接失败，是否重试？")
+                    if retry:
+                        self.connect_database()
+                    else:
+                        self.db = None
         else:
             self.db = None
     
@@ -209,6 +244,7 @@ class InfantHealthSystem:
         ttk.Button(button_frame, text="添加", command=self.add_infant).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(button_frame, text="修改", command=self.edit_infant).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(button_frame, text="删除", command=self.delete_infant).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(button_frame, text="删除历史档案", command=self.delete_history_records).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(button_frame, text="历史档案", command=self.view_history).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(button_frame, text="添加示例", command=self.add_sample_data).pack(side=tk.LEFT, padx=(0, 5))
         
@@ -286,6 +322,10 @@ class InfantHealthSystem:
             if not self.current_infant_name and self.infant_names:
                 self.infant_var.set(self.infant_names[0])
                 self.current_infant_name = self.infant_names[0]
+                # 获取当前婴幼儿的ID
+                latest_info = self.db.get_latest_infant(self.infant_names[0])
+                if latest_info:
+                    self.current_infant_id = latest_info['id']
                 self.display_latest_infant_info(self.infant_names[0])
                 self.plot_growth_curve(self.infant_names[0])
                 self.load_chat_history(self.infant_names[0])
@@ -302,6 +342,10 @@ class InfantHealthSystem:
         selected_name = self.infant_var.get()
         if selected_name:
             self.current_infant_name = selected_name
+            # 获取当前婴幼儿的ID
+            latest_info = self.db.get_latest_infant(selected_name)
+            if latest_info:
+                self.current_infant_id = latest_info['id']
             self.display_latest_infant_info(selected_name)
             # 生成生长曲线
             self.plot_growth_curve(selected_name)
@@ -368,76 +412,107 @@ class InfantHealthSystem:
                 messagebox.showinfo("成功", "婴幼儿档案添加成功！")
                 self.load_infant_list()
                 # 选择新添加的婴幼儿
-                for i, (name, id) in enumerate(self.infant_list):
-                    if id == infant_id:
-                        self.infant_combobox.current(i)
-                        self.current_infant_id = infant_id
-                        self.display_infant_info(infant_id)
-                        break
+                # 重新加载后，最新添加的婴幼儿会出现在列表中
+                # 由于我们使用姓名来管理，不需要特别处理ID
     
     def edit_infant(self):
         # 修改婴幼儿信息
-        if not self.current_infant_id:
+        if not self.current_infant_name:
             messagebox.showwarning("警告", "请先选择一个婴幼儿")
             return
         
-        infant = self.db.get_infant(self.current_infant_id)
+        # 获取最新的婴幼儿档案
+        infant = self.db.get_latest_infant(self.current_infant_name)
         if not infant:
             messagebox.showerror("错误", "婴幼儿信息不存在")
             return
         
         # 转换为字典格式
         infant_data = {
-            'name': infant[1],
-            'gender': infant[2],
-            'birth_date': infant[3],
-            'is_preterm': infant[4],
-            'gestational_age': infant[5],
-            'weight': infant[6],
-            'height': infant[7],
-            'head_circumference': infant[8],
-            'feeding_type': infant[9],
-            'daily_milk': infant[10],
-            '辅食_start_age': infant[11],
-            'allergies': infant[12],
-            'health_conditions': infant[13],
-            'supplements': infant[14],
-            'food_texture': infant[15],
-            'disliked_foods': infant[16],
-            'can_eat_independently': infant[17],
-            'family_dietary_restrictions': infant[18],
-            'city': infant[19]
+            'name': infant['name'],
+            'gender': infant['gender'],
+            'birth_date': infant['birth_date'],
+            'is_preterm': infant['is_preterm'],
+            'gestational_age': infant['gestational_age'],
+            'weight': infant['weight'],
+            'height': infant['height'],
+            'head_circumference': infant['head_circumference'],
+            'feeding_type': infant['feeding_type'],
+            'daily_milk': infant['daily_milk'],
+            '辅食_start_age': infant['辅食_start_age'],
+            'allergies': infant['allergies'],
+            'health_conditions': infant['health_conditions'],
+            'supplements': infant['supplements'],
+            'food_texture': infant['food_texture'],
+            'disliked_foods': infant['disliked_foods'],
+            'can_eat_independently': infant['can_eat_independently'],
+            'family_dietary_restrictions': infant['family_dietary_restrictions'],
+            'city': infant['city']
         }
         
         from infant_form import InfantForm
         form = InfantForm(self.root, title="修改婴幼儿档案", data=infant_data)
         if form.result:
             # 更新数据库
-            success = self.db.update_infant(self.current_infant_id, form.result)
-            if success:
-                messagebox.showinfo("成功", "婴幼儿档案修改成功！")
-                self.display_infant_info(self.current_infant_id)
-                self.load_infant_list()
-                # 重新选择当前婴幼儿
-                for i, (name, id) in enumerate(self.infant_list):
-                    if id == self.current_infant_id:
-                        self.infant_combobox.current(i)
-                        break
+            # 由于我们是按姓名来管理的，这里需要获取最新的ID
+            latest_info = self.db.get_latest_infant(self.current_infant_name)
+            if latest_info:
+                success = self.db.update_infant(latest_info['id'], form.result)
+                if success:
+                    messagebox.showinfo("成功", "婴幼儿档案修改成功！")
+                    self.display_latest_infant_info(self.current_infant_name)
+                    self.load_infant_list()
+                    # 重新选择当前婴幼儿
+                    if self.infant_names:
+                        try:
+                            index = self.infant_names.index(self.current_infant_name)
+                            self.infant_combobox.current(index)
+                        except ValueError:
+                            pass
     
     def delete_infant(self):
         # 删除婴幼儿
-        if not self.current_infant_id:
+        if not self.current_infant_name:
             messagebox.showwarning("警告", "请先选择一个婴幼儿")
             return
         
-        if messagebox.askyesno("确认", "确定要删除该婴幼儿档案吗？此操作不可恢复！"):
-            success = self.db.delete_infant(self.current_infant_id)
+        # 获取最新的婴幼儿档案，以获取ID
+        latest_info = self.db.get_latest_infant(self.current_infant_name)
+        if not latest_info:
+            messagebox.showerror("错误", "婴幼儿信息不存在")
+            return
+        
+        if messagebox.askyesno("确认", f"确定要删除{self.current_infant_name}的档案吗？此操作不可恢复！"):
+            success = self.db.delete_infant(latest_info['id'])
             if success:
                 messagebox.showinfo("成功", "婴幼儿档案删除成功！")
+                self.current_infant_name = None
                 self.current_infant_id = None
                 self.load_infant_list()
                 self.clear_info_display()
                 self.clear_chat_display()
+    
+    def delete_history_records(self):
+        # 删除婴幼儿的所有历史记录
+        if not self.current_infant_name:
+            messagebox.showwarning("警告", "请先选择一个婴幼儿")
+            return
+        
+        if messagebox.askyesno("确认", f"确定要删除{self.current_infant_name}的所有历史记录吗？此操作不可恢复！"):
+            success = self.db.delete_infant_history(self.current_infant_name)
+            if success:
+                messagebox.showinfo("成功", "历史记录删除成功！")
+                # 重新加载婴幼儿列表
+                self.load_infant_list()
+                # 如果当前婴幼儿仍然存在，重新显示信息
+                if self.current_infant_name in self.infant_names:
+                    self.display_latest_infant_info(self.current_infant_name)
+                    self.plot_growth_curve(self.current_infant_name)
+                else:
+                    self.current_infant_name = None
+                    self.current_infant_id = None
+                    self.clear_info_display()
+                    self.clear_chat_display()
     
     def load_chat_history(self, infant_name):
         # 加载聊天历史
@@ -744,6 +819,8 @@ class InfantHealthSystem:
             ax1.plot(months, weights, 'o-', color='blue', label='实际体重 (kg)')
             # 添加WHO参考曲线
             ax1.plot(who_months, who_data['weight'][gender_key]['p50'], '--', color='green', label='WHO P50')
+            ax1.plot(who_months, who_data['weight'][gender_key]['p3'], ':', color='orange', label='WHO P3')
+            ax1.plot(who_months, who_data['weight'][gender_key]['p97'], ':', color='red', label='WHO P97')
             ax1.fill_between(who_months, who_data['weight'][gender_key]['p3'], who_data['weight'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
             ax1.set_title('体重增长曲线')
             ax1.set_xlabel('月龄')
@@ -755,6 +832,8 @@ class InfantHealthSystem:
             ax2.plot(months, heights, 'o-', color='blue', label='实际身高 (cm)')
             # 添加WHO参考曲线
             ax2.plot(who_months, who_data['height'][gender_key]['p50'], '--', color='green', label='WHO P50')
+            ax2.plot(who_months, who_data['height'][gender_key]['p3'], ':', color='orange', label='WHO P3')
+            ax2.plot(who_months, who_data['height'][gender_key]['p97'], ':', color='red', label='WHO P97')
             ax2.fill_between(who_months, who_data['height'][gender_key]['p3'], who_data['height'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
             ax2.set_title('身高增长曲线')
             ax2.set_xlabel('月龄')
@@ -773,6 +852,8 @@ class InfantHealthSystem:
             ax3.plot(valid_months, valid_hc, 'o-', color='blue', label='实际头围 (cm)')
             # 添加WHO参考曲线
             ax3.plot(who_months, who_data['head_circumference'][gender_key]['p50'], '--', color='green', label='WHO P50')
+            ax3.plot(who_months, who_data['head_circumference'][gender_key]['p3'], ':', color='orange', label='WHO P3')
+            ax3.plot(who_months, who_data['head_circumference'][gender_key]['p97'], ':', color='red', label='WHO P97')
             ax3.fill_between(who_months, who_data['head_circumference'][gender_key]['p3'], who_data['head_circumference'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
             ax3.set_title('头围增长曲线')
             ax3.set_xlabel('月龄')
@@ -788,6 +869,8 @@ class InfantHealthSystem:
             ax1.plot(months, weights, 'o-', color='blue', label='实际体重 (kg)')
             # 添加WHO参考曲线
             ax1.plot(who_months, who_data['weight'][gender_key]['p50'], '--', color='green', label='WHO P50')
+            ax1.plot(who_months, who_data['weight'][gender_key]['p3'], ':', color='orange', label='WHO P3')
+            ax1.plot(who_months, who_data['weight'][gender_key]['p97'], ':', color='red', label='WHO P97')
             ax1.fill_between(who_months, who_data['weight'][gender_key]['p3'], who_data['weight'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
             ax1.set_title('体重增长曲线')
             ax1.set_xlabel('月龄')
@@ -799,6 +882,8 @@ class InfantHealthSystem:
             ax2.plot(months, heights, 'o-', color='blue', label='实际身高 (cm)')
             # 添加WHO参考曲线
             ax2.plot(who_months, who_data['height'][gender_key]['p50'], '--', color='green', label='WHO P50')
+            ax2.plot(who_months, who_data['height'][gender_key]['p3'], ':', color='orange', label='WHO P3')
+            ax2.plot(who_months, who_data['height'][gender_key]['p97'], ':', color='red', label='WHO P97')
             ax2.fill_between(who_months, who_data['height'][gender_key]['p3'], who_data['height'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
             ax2.set_title('身高增长曲线')
             ax2.set_xlabel('月龄')
@@ -818,18 +903,34 @@ class InfantHealthSystem:
         # 添加消息到聊天界面
         self.chat_text.config(state=tk.NORMAL)
         
-        if role == "user":
-            self.chat_text.insert(tk.END, f"\n【我】 {timestamp}\n", "user")
-        else:
-            self.chat_text.insert(tk.END, f"\n【AI】 {timestamp}\n", "assistant")
+        # 增加空行作为分隔
+        self.chat_text.insert(tk.END, "\n\n")
         
-        self.chat_text.insert(tk.END, content + "\n")
+        if role == "user":
+            # 用户消息放在右边
+            # 创建右对齐标签，增大时间戳字体
+            self.chat_text.tag_config("user", foreground="blue", font=("SimHei", 12, "bold"), justify=tk.RIGHT)
+            self.chat_text.tag_config("user_right", justify=tk.RIGHT, background="#E3F2FD")
+            # 插入右对齐的用户信息和内容
+            # 先插入一个空行，然后使用右对齐标签
+            self.chat_text.insert(tk.END, "\n", "user")
+            self.chat_text.insert(tk.END, f"【我】 {timestamp}\n", "user")
+            # 增加时间戳和内容之间的空行
+            self.chat_text.insert(tk.END, "\n")
+            self.chat_text.insert(tk.END, content + "\n", "user_right")
+        else:
+            # AI消息放在左边
+            # 创建左对齐标签，增大时间戳字体
+            self.chat_text.tag_config("assistant", foreground="green", font=("SimHei", 12, "bold"), justify=tk.LEFT)
+            self.chat_text.tag_config("assistant_left", justify=tk.LEFT, background="#F1F8E9")
+            # 插入左对齐的AI信息和内容
+            self.chat_text.insert(tk.END, f"\n【AI】 {timestamp}\n", "assistant")
+            # 增加时间戳和内容之间的空行
+            self.chat_text.insert(tk.END, "\n")
+            self.chat_text.insert(tk.END, content + "\n", "assistant_left")
+        
         self.chat_text.config(state=tk.DISABLED)
         self.chat_text.see(tk.END)
-        
-        # 配置标签样式
-        self.chat_text.tag_config("user", foreground="blue", font=("SimHei", 10, "bold"))
-        self.chat_text.tag_config("assistant", foreground="green", font=("SimHei", 10, "bold"))
     
     def send_message(self):
         # 发送消息给AI
@@ -856,8 +957,20 @@ class InfantHealthSystem:
         # 显示正在思考
         thinking_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.chat_text.config(state=tk.NORMAL)
+        
+        # 增加空行作为分隔
+        self.chat_text.insert(tk.END, "\n\n")
+        
+        # AI消息放在左边
+        # 创建左对齐标签，增大时间戳字体
+        self.chat_text.tag_config("assistant", foreground="green", font=("SimHei", 12, "bold"), justify=tk.LEFT)
+        self.chat_text.tag_config("assistant_left", justify=tk.LEFT, background="#F1F8E9")
+        # 插入左对齐的AI信息和内容
         self.chat_text.insert(tk.END, f"\n【AI】 {thinking_time}\n", "assistant")
-        self.chat_text.insert(tk.END, "AI正在思考...\n")
+        # 增加时间戳和内容之间的空行
+        self.chat_text.insert(tk.END, "\n")
+        self.chat_text.insert(tk.END, "AI正在思考...\n", "assistant_left")
+        
         self.chat_text.config(state=tk.DISABLED)
         self.chat_text.see(tk.END)
         
@@ -910,19 +1023,24 @@ class InfantHealthSystem:
         
         # 更新AI思考为实际回复
         self.chat_text.config(state=tk.NORMAL)
-        # 删除最后两行（正在思考的提示）
-        # 先获取当前文本内容
-        content = self.chat_text.get(1.0, tk.END)
-        lines = content.split('\n')
-        # 计算需要保留的行数
-        if len(lines) >= 3:
-            # 删除最后两行（思考提示和空行）
-            new_content = '\n'.join(lines[:-3]) + '\n'
-            self.chat_text.delete(1.0, tk.END)
-            self.chat_text.insert(tk.END, new_content)
+        # 删除最后几行（包括空行、思考提示和空行）
+        # 从倒数第6行开始删除
+        self.chat_text.delete('end-6l', tk.END)
+        
+        # 增加空行作为分隔
+        self.chat_text.insert(tk.END, "\n\n")
+        
         # 插入AI回复
+        # AI消息放在左边
+        # 创建左对齐标签，增大时间戳字体
+        self.chat_text.tag_config("assistant", foreground="green", font=("SimHei", 12, "bold"), justify=tk.LEFT)
+        self.chat_text.tag_config("assistant_left", justify=tk.LEFT, background="#F1F8E9")
+        # 插入左对齐的AI信息和内容
         self.chat_text.insert(tk.END, f"\n【AI】 {current_time}\n", "assistant")
-        self.chat_text.insert(tk.END, response + "\n")
+        # 增加时间戳和内容之间的空行
+        self.chat_text.insert(tk.END, "\n")
+        self.chat_text.insert(tk.END, response + "\n", "assistant_left")
+        
         self.chat_text.config(state=tk.DISABLED)
         self.chat_text.see(tk.END)
         
@@ -1000,6 +1118,8 @@ class InfantHealthSystem:
                 # 绘制体重曲线
                 ax1.plot(months, weights, 'o-', color='blue', label='实际体重 (kg)')
                 ax1.plot(who_months, who_data['weight'][gender_key]['p50'], '--', color='green', label='WHO P50')
+                ax1.plot(who_months, who_data['weight'][gender_key]['p3'], ':', color='orange', label='WHO P3')
+                ax1.plot(who_months, who_data['weight'][gender_key]['p97'], ':', color='red', label='WHO P97')
                 ax1.fill_between(who_months, who_data['weight'][gender_key]['p3'], who_data['weight'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
                 ax1.set_title(f'{self.current_infant_name}的体重增长曲线')
                 ax1.set_xlabel('月龄')
@@ -1010,6 +1130,8 @@ class InfantHealthSystem:
                 # 绘制身高曲线
                 ax2.plot(months, heights, 'o-', color='blue', label='实际身高 (cm)')
                 ax2.plot(who_months, who_data['height'][gender_key]['p50'], '--', color='green', label='WHO P50')
+                ax2.plot(who_months, who_data['height'][gender_key]['p3'], ':', color='orange', label='WHO P3')
+                ax2.plot(who_months, who_data['height'][gender_key]['p97'], ':', color='red', label='WHO P97')
                 ax2.fill_between(who_months, who_data['height'][gender_key]['p3'], who_data['height'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
                 ax2.set_title(f'{self.current_infant_name}的身高增长曲线')
                 ax2.set_xlabel('月龄')
@@ -1026,6 +1148,8 @@ class InfantHealthSystem:
                         valid_hc.append(hc)
                 ax3.plot(valid_months, valid_hc, 'o-', color='blue', label='实际头围 (cm)')
                 ax3.plot(who_months, who_data['head_circumference'][gender_key]['p50'], '--', color='green', label='WHO P50')
+                ax3.plot(who_months, who_data['head_circumference'][gender_key]['p3'], ':', color='orange', label='WHO P3')
+                ax3.plot(who_months, who_data['head_circumference'][gender_key]['p97'], ':', color='red', label='WHO P97')
                 ax3.fill_between(who_months, who_data['head_circumference'][gender_key]['p3'], who_data['head_circumference'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
                 ax3.set_title(f'{self.current_infant_name}的头围增长曲线')
                 ax3.set_xlabel('月龄')
@@ -1040,6 +1164,8 @@ class InfantHealthSystem:
                 # 绘制体重曲线
                 ax1.plot(months, weights, 'o-', color='blue', label='实际体重 (kg)')
                 ax1.plot(who_months, who_data['weight'][gender_key]['p50'], '--', color='green', label='WHO P50')
+                ax1.plot(who_months, who_data['weight'][gender_key]['p3'], ':', color='orange', label='WHO P3')
+                ax1.plot(who_months, who_data['weight'][gender_key]['p97'], ':', color='red', label='WHO P97')
                 ax1.fill_between(who_months, who_data['weight'][gender_key]['p3'], who_data['weight'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
                 ax1.set_title(f'{self.current_infant_name}的体重增长曲线')
                 ax1.set_xlabel('月龄')
@@ -1050,6 +1176,8 @@ class InfantHealthSystem:
                 # 绘制身高曲线
                 ax2.plot(months, heights, 'o-', color='blue', label='实际身高 (cm)')
                 ax2.plot(who_months, who_data['height'][gender_key]['p50'], '--', color='green', label='WHO P50')
+                ax2.plot(who_months, who_data['height'][gender_key]['p3'], ':', color='orange', label='WHO P3')
+                ax2.plot(who_months, who_data['height'][gender_key]['p97'], ':', color='red', label='WHO P97')
                 ax2.fill_between(who_months, who_data['height'][gender_key]['p3'], who_data['height'][gender_key]['p97'], color='lightgreen', alpha=0.3, label='WHO 正常范围')
                 ax2.set_title(f'{self.current_infant_name}的身高增长曲线')
                 ax2.set_xlabel('月龄')
